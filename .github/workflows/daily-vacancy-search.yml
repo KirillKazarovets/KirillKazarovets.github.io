@@ -113,3 +113,4 @@ jobs:
           print(f"\n✅ Total added: {added_count} vacancies")
 
           EOF
+
