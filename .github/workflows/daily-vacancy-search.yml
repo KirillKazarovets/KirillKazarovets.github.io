@@ -2,37 +2,22 @@ name: Daily Vacancy Search
 
 on:
   schedule:
-    - cron: '0 17 * * *'  # 20:00 Moscow time (17:00 UTC)
+    - cron: '0 17 * * *'
   workflow_dispatch:
 
 jobs:
   search:
     runs-on: ubuntu-latest
     steps:
-      - name: Search vacancies from HH.ru
+      - name: Search vacancies from multiple sources
         run: |
           python3 << 'EOF'
           import requests
           import json
           from datetime import datetime
+          from bs4 import BeautifulSoup
 
           FIREBASE_URL = "https://job-tracker-new-cbbd4-default-rtdb.europe-west1.firebasedatabase.app"
-          MOSCOW_AREA = "1"
-          SPB_AREA = "2"
-
-          def get_salary_text(salary_obj):
-              if not salary_obj:
-                  return "не указана"
-              from_val = salary_obj.get("from")
-              to_val = salary_obj.get("to")
-              currency = salary_obj.get("currency", "RUB")
-              if from_val and to_val:
-                  return f"{from_val}-{to_val} {currency}"
-              elif from_val:
-                  return f"{from_val}+ {currency}"
-              elif to_val:
-                  return f"до {to_val} {currency}"
-              return "не указана"
 
           search_queries = [
               "it рекрутер",
@@ -46,35 +31,83 @@ jobs:
 
           all_vacancies = []
 
+          # SuperJob
           for query in search_queries:
-              for area in [MOSCOW_AREA, SPB_AREA]:
-                  try:
-                      params = {
-                          "text": query,
-                          "area": area,
-                          "order_by": "publication_time",
-                          "per_page": 50
-                      }
+              try:
+                  url = "https://api.superjob.ru/0.0/vacancies/"
+                  params = {
+                      "keyword": query,
+                      "geo[c][0]": "4",  # Moscow
+                      "geo[c][1]": "31",  # SPB
+                      "count": 50
+                  }
+                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"})
+                  if response.status_code == 200:
+                      data = response.json()
+                      for item in data.get("objects", []):
+                          all_vacancies.append({
+                              "id": f"superjob_{item['id']}",
+                              "title": item["profession"],
+                              "company": item["company_name"],
+                              "url": item["link"],
+                              "salary": item.get("payment_from", "не указана"),
+                              "source": "SuperJob"
+                          })
+                      print(f"SuperJob: Found {len(data.get('objects', []))} for '{query}'")
+              except Exception as e:
+                  print(f"SuperJob error: {e}")
 
-                      response = requests.get(
-                          "https://api.hh.ru/vacancies",
-                          params=params,
-                          headers={"User-Agent": "Mozilla/5.0"}
-                      )
+          # GetMatch
+          for query in search_queries:
+              try:
+                  url = "https://api.getmatch.ru/api/vacancies/"
+                  params = {
+                      "q": query,
+                      "geo": "moscow,spb",
+                      "limit": 50
+                  }
+                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"})
+                  if response.status_code == 200:
+                      data = response.json()
+                      for item in data.get("data", []):
+                          all_vacancies.append({
+                              "id": f"getmatch_{item['id']}",
+                              "title": item["title"],
+                              "company": item["company"],
+                              "url": item["url"],
+                              "salary": item.get("salary", "не указана"),
+                              "source": "GetMatch"
+                          })
+                      print(f"GetMatch: Found {len(data.get('data', []))} for '{query}'")
+              except Exception as e:
+                  print(f"GetMatch error: {e}")
 
-                      print(f"Query: {query}, Area: {area}, Status: {response.status_code}")
-                      
-                      if response.status_code == 200:
-                          data = response.json()
-                          print(f"Found total: {data.get('found', 0)}")
-                          items = data.get("items", [])
-                          all_vacancies.extend(items)
-                          print(f"Got {len(items)} vacancies for '{query}' in area {area}")
-                      else:
-                          print(f"Error: {response.text[:200]}")
-                  except Exception as e:
-                      print(f"Error searching: {e}")
+          # Habr Career
+          for query in search_queries:
+              try:
+                  url = "https://career.habr.com/api/v1/vacancies"
+                  params = {
+                      "text": query,
+                      "geo_id": "1,2",
+                      "limit": 50
+                  }
+                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"})
+                  if response.status_code == 200:
+                      data = response.json()
+                      for item in data.get("items", []):
+                          all_vacancies.append({
+                              "id": f"habr_{item['id']}",
+                              "title": item["title"],
+                              "company": item["company"]["title"],
+                              "url": f"https://career.habr.com/vacancies/{item['id']}",
+                              "salary": item.get("salary_from", "не указана"),
+                              "source": "Habr"
+                          })
+                      print(f"Habr: Found {len(data.get('items', []))} for '{query}'")
+              except Exception as e:
+                  print(f"Habr error: {e}")
 
+          # Remove duplicates
           seen_ids = set()
           unique_vacancies = []
           for v in all_vacancies:
@@ -84,16 +117,17 @@ jobs:
 
           unique_vacancies = unique_vacancies[:15]
 
+          # Upload to Firebase
           added_count = 0
           for vacancy in unique_vacancies:
               try:
                   job_data = {
                       "id": vacancy["id"],
-                      "title": vacancy["name"],
-                      "company": vacancy["employer"]["name"],
-                      "url": vacancy["alternate_url"],
-                      "salary": get_salary_text(vacancy.get("salary")),
-                      "tags": ["HH.ru"],
+                      "title": vacancy["title"],
+                      "company": vacancy["company"],
+                      "url": vacancy["url"],
+                      "salary": str(vacancy.get("salary", "не указана")),
+                      "tags": [vacancy["source"]],
                       "status": "new",
                       "fit": "high",
                       "letter": "",
@@ -105,11 +139,9 @@ jobs:
 
                   if put_response.status_code in [200, 201]:
                       added_count += 1
-                      print(f"✓ Added: {vacancy['name']}")
-                  else:
-                      print(f"✗ Failed to add: {vacancy['name']}")
+                      print(f"✓ Added: {vacancy['title']}")
               except Exception as e:
-                  print(f"Error uploading vacancy: {e}")
+                  print(f"Error: {e}")
 
           print(f"\n✅ Total added: {added_count} vacancies")
 
