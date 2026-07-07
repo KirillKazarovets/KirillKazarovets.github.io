@@ -23,11 +23,9 @@ jobs:
           def get_salary_text(salary_obj):
               if not salary_obj:
                   return "не указана"
-
               from_val = salary_obj.get("from")
               to_val = salary_obj.get("to")
               currency = salary_obj.get("currency", "RUB")
-
               if from_val and to_val:
                   return f"{from_val}-{to_val} {currency}"
               elif from_val:
@@ -36,7 +34,6 @@ jobs:
                   return f"до {to_val} {currency}"
               return "не указана"
 
-          # Search for IT recruiter positions in Moscow and SPB
           search_queries = [
               "it рекрутер",
               "junior it рекрутер",
@@ -60,22 +57,24 @@ jobs:
                       }
 
                       response = requests.get(
-                "https://api.hh.ru/vacancies",
-                params=params,
-                headers={"User-Agent": "Mozilla/5.0"}
-            )
+                          "https://api.hh.ru/vacancies",
+                          params=params,
+                          headers={"User-Agent": "Mozilla/5.0"}
+                      )
 
-            print(f"Query: {query}, Area: {area}, Status: {response.status_code}")
-            if response.status_code == 200:
-                data = response.json()
-                print(f"Found total: {data.get('found', 0)}")
-                items = data.get("items", [])
-                all_vacancies.extend(items)
-                print(f"Got {len(items)} vacancies for '{query}' in area {area}")
-            else:
-                print(f"Error: {response.text[:200]}")
+                      print(f"Query: {query}, Area: {area}, Status: {response.status_code}")
+                      
+                      if response.status_code == 200:
+                          data = response.json()
+                          print(f"Found total: {data.get('found', 0)}")
+                          items = data.get("items", [])
+                          all_vacancies.extend(items)
+                          print(f"Got {len(items)} vacancies for '{query}' in area {area}")
+                      else:
+                          print(f"Error: {response.text[:200]}")
+                  except Exception as e:
+                      print(f"Error searching: {e}")
 
-          # Remove duplicates and limit to 15
           seen_ids = set()
           unique_vacancies = []
           for v in all_vacancies:
@@ -85,7 +84,6 @@ jobs:
 
           unique_vacancies = unique_vacancies[:15]
 
-          # Upload to Firebase
           added_count = 0
           for vacancy in unique_vacancies:
               try:
@@ -116,4 +114,3 @@ jobs:
           print(f"\n✅ Total added: {added_count} vacancies")
 
           EOF
-
