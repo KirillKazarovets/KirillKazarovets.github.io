@@ -65,10 +65,15 @@ jobs:
                 headers={"User-Agent": "Mozilla/5.0"}
             )
 
+            print(f"Query: {query}, Area: {area}, Status: {response.status_code}")
             if response.status_code == 200:
-                items = response.json().get("items", [])
+                data = response.json()
+                print(f"Found total: {data.get('found', 0)}")
+                items = data.get("items", [])
                 all_vacancies.extend(items)
-                print(f"Found {len(items)} vacancies for '{query}' in area {area}")
+                print(f"Got {len(items)} vacancies for '{query}' in area {area}")
+            else:
+                print(f"Error: {response.text[:200]}")
 
           # Remove duplicates and limit to 15
           seen_ids = set()
