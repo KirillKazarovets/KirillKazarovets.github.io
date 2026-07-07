@@ -15,7 +15,6 @@ jobs:
           import requests
           import json
           from datetime import datetime
-          from bs4 import BeautifulSoup
 
           FIREBASE_URL = "https://job-tracker-new-cbbd4-default-rtdb.europe-west1.firebasedatabase.app"
 
@@ -37,11 +36,11 @@ jobs:
                   url = "https://api.superjob.ru/0.0/vacancies/"
                   params = {
                       "keyword": query,
-                      "geo[c][0]": "4",  # Moscow
-                      "geo[c][1]": "31",  # SPB
+                      "geo[c][0]": "4",
+                      "geo[c][1]": "31",
                       "count": 50
                   }
-                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"})
+                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
                   if response.status_code == 200:
                       data = response.json()
                       for item in data.get("objects", []):
@@ -57,41 +56,15 @@ jobs:
               except Exception as e:
                   print(f"SuperJob error: {e}")
 
-          # GetMatch
-          for query in search_queries:
-              try:
-                  url = "https://api.getmatch.ru/api/vacancies/"
-                  params = {
-                      "q": query,
-                      "geo": "moscow,spb",
-                      "limit": 50
-                  }
-                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"})
-                  if response.status_code == 200:
-                      data = response.json()
-                      for item in data.get("data", []):
-                          all_vacancies.append({
-                              "id": f"getmatch_{item['id']}",
-                              "title": item["title"],
-                              "company": item["company"],
-                              "url": item["url"],
-                              "salary": item.get("salary", "не указана"),
-                              "source": "GetMatch"
-                          })
-                      print(f"GetMatch: Found {len(data.get('data', []))} for '{query}'")
-              except Exception as e:
-                  print(f"GetMatch error: {e}")
-
           # Habr Career
           for query in search_queries:
               try:
                   url = "https://career.habr.com/api/v1/vacancies"
                   params = {
                       "text": query,
-                      "geo_id": "1,2",
                       "limit": 50
                   }
-                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"})
+                  response = requests.get(url, params=params, headers={"User-Agent": "Mozilla/5.0"}, timeout=5)
                   if response.status_code == 200:
                       data = response.json()
                       for item in data.get("items", []):
@@ -107,7 +80,7 @@ jobs:
               except Exception as e:
                   print(f"Habr error: {e}")
 
-          # Remove duplicates
+          # Remove duplicates and limit to 15
           seen_ids = set()
           unique_vacancies = []
           for v in all_vacancies:
@@ -135,13 +108,13 @@ jobs:
                   }
 
                   firebase_url = f"{FIREBASE_URL}/vacancies/{vacancy['id']}.json"
-                  put_response = requests.put(firebase_url, json=job_data)
+                  put_response = requests.put(firebase_url, json=job_data, timeout=10)
 
                   if put_response.status_code in [200, 201]:
                       added_count += 1
                       print(f"✓ Added: {vacancy['title']}")
               except Exception as e:
-                  print(f"Error: {e}")
+                  print(f"Error uploading: {e}")
 
           print(f"\n✅ Total added: {added_count} vacancies")
 
