@@ -1,0 +1,113 @@
+name: Daily Vacancy Search
+
+on:
+  schedule:
+    - cron: '0 17 * * *'  # 20:00 Moscow time (17:00 UTC)
+  workflow_dispatch:
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Search vacancies from HH.ru
+        run: |
+          python3 << 'EOF'
+          import requests
+          import json
+          from datetime import datetime
+
+          FIREBASE_URL = "https://job-tracker-new-cbbd4-default-rtdb.europe-west1.firebasedatabase.app"
+          MOSCOW_AREA = "1"
+          SPB_AREA = "2"
+
+          def get_salary_text(salary_obj):
+              if not salary_obj:
+                  return "не указана"
+
+              from_val = salary_obj.get("from")
+              to_val = salary_obj.get("to")
+              currency = salary_obj.get("currency", "RUB")
+
+              if from_val and to_val:
+                  return f"{from_val}-{to_val} {currency}"
+              elif from_val:
+                  return f"{from_val}+ {currency}"
+              elif to_val:
+                  return f"до {to_val} {currency}"
+              return "не указана"
+
+          # Search for Junior IT recruiter positions in Moscow and SPB
+          search_queries = [
+              "Junior IT recruiter",
+              "Junior рекрутер IT",
+              "Junior IT sourcer",
+              "Junior ИТ рекрутер"
+          ]
+
+          all_vacancies = []
+
+          for query in search_queries:
+              for area in [MOSCOW_AREA, SPB_AREA]:
+                  try:
+                      params = {
+                          "text": query,
+                          "area": area,
+                          "order_by": "publication_time",
+                          "per_page": 50,
+                          "experience": "between_1_and_3"  # 1-3 years
+                      }
+
+                      response = requests.get(
+                          "https://api.hh.ru/vacancies",
+                          params=params,
+                          headers={"User-Agent": "Mozilla/5.0"}
+                      )
+
+                      if response.status_code == 200:
+                          items = response.json().get("items", [])
+                          all_vacancies.extend(items)
+                          print(f"Found {len(items)} vacancies for '{query}' in area {area}")
+                  except Exception as e:
+                      print(f"Error searching: {e}")
+
+          # Remove duplicates and limit to 15
+          seen_ids = set()
+          unique_vacancies = []
+          for v in all_vacancies:
+              if v["id"] not in seen_ids:
+                  seen_ids.add(v["id"])
+                  unique_vacancies.append(v)
+
+          unique_vacancies = unique_vacancies[:15]
+
+          # Upload to Firebase
+          added_count = 0
+          for vacancy in unique_vacancies:
+              try:
+                  job_data = {
+                      "id": vacancy["id"],
+                      "title": vacancy["name"],
+                      "company": vacancy["employer"]["name"],
+                      "url": vacancy["alternate_url"],
+                      "salary": get_salary_text(vacancy.get("salary")),
+                      "tags": ["HH.ru", "Junior"],
+                      "status": "new",
+                      "fit": "high",
+                      "letter": "",
+                      "createdAt": int(datetime.now().timestamp() * 1000)
+                  }
+
+                  firebase_url = f"{FIREBASE_URL}/vacancies/{vacancy['id']}.json"
+                  put_response = requests.put(firebase_url, json=job_data)
+
+                  if put_response.status_code in [200, 201]:
+                      added_count += 1
+                      print(f"✓ Added: {vacancy['name']}")
+                  else:
+                      print(f"✗ Failed to add: {vacancy['name']}")
+              except Exception as e:
+                  print(f"Error uploading vacancy: {e}")
+
+          print(f"\n✅ Total added: {added_count} vacancies")
+
+          EOF
