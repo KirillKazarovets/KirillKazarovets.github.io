@@ -60,17 +60,15 @@ jobs:
                       }
 
                       response = requests.get(
-                          "https://api.hh.ru/vacancies",
-                          params=params,
-                          headers={"User-Agent": "Mozilla/5.0"}
-                      )
+                "https://api.hh.ru/vacancies",
+                params=params,
+                headers={"User-Agent": "Mozilla/5.0"}
+            )
 
-                      if response.status_code == 200:
-                          items = response.json().get("items", [])
-                          all_vacancies.extend(items)
-                          print(f"Found {len(items)} vacancies for '{query}' in area {area}")
-                  except Exception as e:
-                      print(f"Error searching: {e}")
+            if response.status_code == 200:
+                items = response.json().get("items", [])
+                all_vacancies.extend(items)
+                print(f"Found {len(items)} vacancies for '{query}' in area {area}")
 
           # Remove duplicates and limit to 15
           seen_ids = set()
