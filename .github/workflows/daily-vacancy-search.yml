@@ -36,12 +36,15 @@ jobs:
                   return f"до {to_val} {currency}"
               return "не указана"
 
-          # Search for Junior IT recruiter positions in Moscow and SPB
+          # Search for IT recruiter positions in Moscow and SPB
           search_queries = [
-              "Junior IT recruiter",
-              "Junior рекрутер IT",
-              "Junior IT sourcer",
-              "Junior ИТ рекрутер"
+              "it рекрутер",
+              "junior it рекрутер",
+              "IT ресечер",
+              "it сорсер",
+              "ит рекрутер",
+              "ит сорсер",
+              "менеджер по подбору персонала IT"
           ]
 
           all_vacancies = []
@@ -53,8 +56,7 @@ jobs:
                           "text": query,
                           "area": area,
                           "order_by": "publication_time",
-                          "per_page": 50,
-                          "experience": "between_1_and_3"  # 1-3 years
+                          "per_page": 50
                       }
 
                       response = requests.get(
@@ -90,7 +92,7 @@ jobs:
                       "company": vacancy["employer"]["name"],
                       "url": vacancy["alternate_url"],
                       "salary": get_salary_text(vacancy.get("salary")),
-                      "tags": ["HH.ru", "Junior"],
+                      "tags": ["HH.ru"],
                       "status": "new",
                       "fit": "high",
                       "letter": "",
