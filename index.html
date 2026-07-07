@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Трекер вакансий · Кирилл</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #0e0e14;
+      color: #e8e8ee;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 28px 22px;
+      line-height: 1.5;
+    }
+    .container { max-width: 920px; margin: 0 auto; }
+    h1 { font-size: 32px; font-weight: 700; margin-bottom: 4px; }
+    .subtitle { color: #8b8b9a; font-size: 13px; margin-bottom: 24px; display: flex; align-items: center; gap: 8px; }
+    .sync-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #6ba876;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .stats { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; }
+    .stat {
+      background: #16161f;
+      border: 1px solid #24242e;
+      border-radius: 12px;
+      padding: 12px 18px;
+      flex: 1;
+      min-width: 140px;
+      text-align: center;
+    }
+    .stat-num { font-size: 24px; font-weight: 700; display: block; margin-bottom: 4px; }
+    .stat-label { font-size: 10px; color: #8b8b9a; text-transform: uppercase; display: block; }
+    .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .filter-btn {
+      padding: 8px 14px;
+      font-size: 12px;
+      border: 1px solid #24242e;
+      border-radius: 20px;
+      background: #16161f;
+      color: #b0b0be;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover { border-color: #36363e; }
+    .filter-btn.active { background: #e8e8ee; color: #12121a; border-color: #e8e8ee; font-weight: 600; }
+    .status-loading { color: #8b8b9a; padding: 40px 20px; text-align: center; font-size: 13px; }
+    .status-error { color: #d95f5f; padding: 40px 20px; text-align: center; font-size: 13px; background: #1e0e0e; border-radius: 12px; border: 1px solid #3a2222; margin: 20px 0; }
+    .list { display: flex; flex-direction: column; gap: 14px; }
+    .card {
+      background: #16161f;
+      border: 1px solid #24242e;
+      border-radius: 14px;
+      padding: 18px;
+      transition: border-color 0.2s;
+    }
+    .card:hover { border-color: #2a2a36; }
+    .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 2px; }
+    .card-company { color: #9a9aa8; font-size: 13px; margin-bottom: 8px; }
+    .card-tags { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+    .tag {
+      font-size: 11px;
+      background: #1e1e28;
+      color: #9a9aa8;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #24242e;
+    }
+    .fit-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+    .fit-high { background: #3fa86022; color: #3fa860; }
+    .fit-medium { background: #d4a54822; color: #d4a548; }
+    .fit-low { background: #6b6b7722; color: #9a9aa8; }
+    .statuses { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+    .status-btn {
+      padding: 6px 12px;
+      font-size: 11px;
+      background: #1e1e28;
+      color: #9a9aa8;
+      border: 1px solid #24242e;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .status-btn:hover { border-color: #36363e; }
+    .status-btn.active { font-weight: 600; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .action-btn {
+      padding: 8px 14px;
+      font-size: 12px;
+      background: #1e1e28;
+      color: #b0b0be;
+      border: 1px solid #24242e;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .action-btn:hover { background: #24242e; border-color: #2a2a36; }
+    .action-btn.primary { color: #4a90d9; border-color: #36505c; }
+    .letter-preview {
+      background: #0e0e14;
+      border: 1px solid #24242e;
+      border-radius: 10px;
+      padding: 14px;
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.6;
+      color: #c8c8d4;
+      max-height: 280px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .empty { text-align: center; color: #8b8b9a; padding: 60px 20px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Мои вакансии</h1>
+    <p class="subtitle">
+      <span class="sync-indicator"></span>
+      Кирилл · IT-рекрутер · Москва + СПб · Junior level
+    </p>
+
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-num" id="total-count">0</span>
+        <span class="stat-label">всего</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num" id="ready-count">0</span>
+        <span class="stat-label">письмо готово</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num" id="sent-count">0</span>
+        <span class="stat-label">отправлено</span>
+      </div>
+      <div class="stat">
+        <span class="stat-num" id="interview-count">0</span>
+        <span class="stat-label">интервью</span>
+      </div>
+    </div>
+
+    <div class="filters" id="filters-container"></div>
+    <div class="list" id="list-container"><div class="status-loading">⏳ Загружаю вакансии из Firebase...</div></div>
+  </div>
+
+  <script>
+    // ===== FIREBASE КОНФИГ =====
+    const FIREBASE_URL = 'https://job-tracker-new-cbbd4-default-rtdb.europe-west1.firebasedatabase.app';
+
+    const STATUSES = [
+      { key: 'new', label: 'Новая', color: '#8b8b9a' },
+      { key: 'letter_ready', label: 'Письмо готово', color: '#d4a548' },
+      { key: 'sent', label: 'Отправлено', color: '#4a90d9' },
+      { key: 'reply', label: 'Ответ', color: '#7c5cbf' },
+      { key: 'interview', label: 'Интервью', color: '#3fa860' },
+      { key: 'rejected', label: 'Отказ', color: '#d95f5f' }
+    ];
+
+    // ===== СОСТОЯНИЕ =====
+    let jobs = [];
+    let currentFilter = 'all';
+    let expandedLetterId = null;
+
+    // ===== FIREBASE ОПЕРАЦИИ =====
+    async function loadFromFirebase() {
+      try {
+        const url = `${FIREBASE_URL}/vacancies.json`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`Firebase HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Преобразуем объект Firebase в массив
+        if (data && typeof data === 'object') {
+          jobs = Object.entries(data)
+            .map(([key, val]) => ({
+              id: val.id || key,
+              ...val
+            }))
+            .filter(j => j && j.id);
+        } else {
+          jobs = [];
+        }
+
+        render();
+      } catch (error) {
+        console.error('Firebase error:', error);
+        document.getElementById('list-container').innerHTML =
+          `<div class="status-error">❌ Ошибка: ${error.message}</div>`;
+      }
+    }
+
+    async function updateJobInFirebase(jobId, updates) {
+      try {
+        const job = jobs.find(j => j.id === jobId);
+        if (!job) return;
+
+        const updated = { ...job, ...updates };
+        const url = `${FIREBASE_URL}/vacancies/${jobId}.json`;
+
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        });
+
+        if (!response.ok) {
+          throw new Error(`Firebase PUT ${response.status}`);
+        }
+
+        // Обновляем локальное состояние
+        const idx = jobs.findIndex(j => j.id === jobId);
+        if (idx >= 0) {
+          jobs[idx] = updated;
+        }
+
+        render();
+      } catch (error) {
+        console.error('Save error:', error);
+        alert('❌ Ошибка сохранения');
+      }
+    }
+
+    // ===== РЕНДЕРИНГ =====
+    function render() {
+      renderFilters();
+      renderList();
+      updateStats();
+    }
+
+    function renderFilters() {
+      const counts = {};
+      STATUSES.forEach(s => {
+        counts[s.key] = jobs.filter(j => j.status === s.key).length;
+      });
+
+      let html = `<button class="filter-btn ${currentFilter === 'all' ? 'active' : ''}" onclick="setFilter('all')">Все (${jobs.length})</button>`;
+
+      STATUSES.forEach(s => {
+        const isActive = currentFilter === s.key;
+        html += `<button class="filter-btn ${isActive ? 'active' : ''}"
+                   style="${isActive ? `background: ${s.color}; color: #fff; border-color: ${s.color}` : ''}"
+                   onclick="setFilter('${s.key}')">
+                   ${s.label} (${counts[s.key] || 0})
+                 </button>`;
+      });
+
+      document.getElementById('filters-container').innerHTML = html;
+    }
+
+    function renderList() {
+      let visible = currentFilter === 'all'
+        ? jobs
+        : jobs.filter(j => j.status === currentFilter);
+
+      // Сортировка по fit
+      const fitOrder = { high: 0, medium: 1, low: 2 };
+      visible.sort((a, b) => (fitOrder[a.fit] || 2) - (fitOrder[b.fit] || 2));
+
+      if (visible.length === 0) {
+        document.getElementById('list-container').innerHTML = '<div class="empty">Нет вакансий в этой категории</div>';
+        return;
+      }
+
+      let html = '';
+      visible.forEach(job => {
+        const isExpanded = expandedLetterId === job.id;
+        const fitClass = `fit-${job.fit || 'low'}`;
+
+        html += `
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">${escapeHtml(job.title || 'Без названия')}</div>
+                <div class="card-company">${escapeHtml(job.company || 'Компания')}</div>
+              </div>
+              <div class="fit-badge ${fitClass}">${getFitLabel(job.fit)}</div>
+            </div>
+
+            <div class="card-tags">
+              ${(job.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}
+              ${job.salary ? `<span class="tag">${escapeHtml(job.salary)}</span>` : ''}
+            </div>
+
+            <div class="statuses">
+              ${STATUSES.map(s => {
+                const isActive = job.status === s.key;
+                return `<button class="status-btn ${isActive ? 'active' : ''}"
+                          style="${isActive ? `background: ${s.color}; color: #fff` : ''}"
+                          onclick="changeStatus('${job.id}', '${s.key}')">
+                          ${s.label}
+                        </button>`;
+              }).join('')}
+            </div>
+
+            <div class="actions">
+              <button class="action-btn ${isExpanded ? 'primary' : ''}" onclick="toggleLetter('${job.id}')">
+                ${isExpanded ? '📩 Скрыть письмо' : '📩 Показать письмо'}
+              </button>
+              <button class="action-btn" onclick="copyLetter('${job.id}')">📋 Копировать</button>
+              <button class="action-btn primary" onclick="openUrl('${escapeAttr(job.url || '#')}')">🔗 Вакансия</button>
+            </div>
+
+            ${isExpanded && job.letter ? `<div class="letter-preview">${escapeHtml(job.letter)}</div>` : ''}
+          </div>
+        `;
+      });
+
+      document.getElementById('list-container').innerHTML = html;
+    }
+
+    function updateStats() {
+      document.getElementById('total-count').textContent = jobs.length;
+      document.getElementById('ready-count').textContent = jobs.filter(j => j.status === 'letter_ready').length;
+      document.getElementById('sent-count').textContent = jobs.filter(j => j.status === 'sent').length;
+      document.getElementById('interview-count').textContent = jobs.filter(j => j.status === 'interview').length;
+    }
+
+    // ===== СОБЫТИЯ ИНТЕРФЕЙСА =====
+    function setFilter(f) {
+      currentFilter = f;
+      render();
+    }
+
+    function changeStatus(jobId, status) {
+      updateJobInFirebase(jobId, { status });
+    }
+
+    function toggleLetter(jobId) {
+      expandedLetterId = expandedLetterId === jobId ? null : jobId;
+      renderList();
+    }
+
+    function copyLetter(jobId) {
+      const job = jobs.find(j => j.id === jobId);
+      if (job && job.letter) {
+        navigator.clipboard.writeText(job.letter).then(() => {
+          alert('✅ Письмо скопировано');
+        }).catch(() => {
+          alert('❌ Ошибка копирования');
+        });
+      }
+    }
+
+    function openUrl(url) {
+      if (url && url !== '#') {
+        window.open(url, '_blank');
+      }
+    }
+
+    function getFitLabel(fit) {
+      if (fit === 'high') return 'Хороший';
+      if (fit === 'medium') return 'Средний';
+      return 'Низкий';
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function escapeAttr(text) {
+      return text.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    // ===== ИНИЦИАЛИЗАЦИЯ =====
+    window.addEventListener('DOMContentLoaded', () => {
+      loadFromFirebase();
+      setInterval(loadFromFirebase, 10000);
+    });
+  </script>
+</body>
+</html>
